@@ -94,9 +94,17 @@ class ImageEditService:
             tried_tokens.add(current_token)
             try:
                 file_attachments = await self._upload_images(images, current_token)
-                tool_overrides: Dict[str, Any] | None = None
+                tool_overrides: Dict[str, Any] = {
+                    "gmailSearch": False,
+                    "googleCalendarSearch": False,
+                    "outlookSearch": False,
+                    "outlookCalendarSearch": False,
+                    "googleDriveSearch": False,
+                }
                 request_overrides = self._build_request_overrides(n)
                 request_overrides["modeId"] = "auto"
+                request_overrides["disableMemory"] = False
+                request_overrides["temporary"] = False
 
                 if stream:
                     response = await GrokChatService().chat(
@@ -206,6 +214,8 @@ class ImageEditService:
         async def _call_edit():
             edit_overrides = self._build_request_overrides(per_call)
             edit_overrides["modeId"] = "auto"
+            edit_overrides["disableMemory"] = False
+            edit_overrides["temporary"] = False
             response = await GrokChatService().chat(
                 token=token,
                 message=prompt,
@@ -338,7 +348,7 @@ class ImageStreamProcessor(BaseProcessor):
                 if ca := resp.get("cardAttachment"):
                     try:
                         jd = orjson.loads(ca.get("jsonData", b"{}"))
-                        if jd.get("type") == "render_generated_image":
+                        if jd.get("type") in ("render_generated_image", "render_edited_image"):
                             chunk = jd.get("image_chunk", {})
                             if chunk.get("progress", 0) >= 100 and chunk.get("imageUrl"):
                                 url = f"https://assets.grok.com/{chunk['imageUrl']}"
@@ -522,12 +532,11 @@ class ImageCollectProcessor(BaseProcessor):
                     continue
 
                 resp = data.get("result", {}).get("response", {})
-
-                # Handle cardAttachment-based image generation (new Grok format)
+                # Handle cardAttachment-based image generation/edit (new Grok format)
                 if ca := resp.get("cardAttachment"):
                     try:
                         jd = orjson.loads(ca.get("jsonData", b"{}"))
-                        if jd.get("type") == "render_generated_image":
+                        if jd.get("type") in ("render_generated_image", "render_edited_image"):
                             chunk = jd.get("image_chunk", {})
                             if chunk.get("progress", 0) >= 100 and chunk.get("imageUrl"):
                                 url = f"https://assets.grok.com/{chunk['imageUrl']}"
