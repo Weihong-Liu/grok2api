@@ -491,6 +491,35 @@ class ImageCollectProcessor(BaseProcessor):
 
                 resp = data.get("result", {}).get("response", {})
 
+                # Handle cardAttachment-based image generation (new Grok format)
+                if ca := resp.get("cardAttachment"):
+                    try:
+                        jd = orjson.loads(ca.get("jsonData", b"{}"))
+                        if jd.get("type") == "render_generated_image":
+                            chunk = jd.get("image_chunk", {})
+                            if chunk.get("progress", 0) >= 100 and chunk.get("imageUrl"):
+                                url = f"https://assets.grok.com/{chunk['imageUrl']}"
+                                if self.response_format == "url":
+                                    processed = await self.process_url(url, "image")
+                                    if processed:
+                                        images.append(processed)
+                                else:
+                                    try:
+                                        dl_service = self._get_dl()
+                                        base64_data = await dl_service.parse_b64(
+                                            url, self.token, "image"
+                                        )
+                                        if base64_data:
+                                            b64 = base64_data.split(",", 1)[1] if "," in base64_data else base64_data
+                                            images.append(b64)
+                                    except Exception as e:
+                                        logger.warning(f"Failed to convert card image to base64: {e}")
+                                        processed = await self.process_url(url, "image")
+                                        if processed:
+                                            images.append(processed)
+                    except Exception:
+                        pass
+
                 if mr := resp.get("modelResponse"):
                     if urls := _collect_images(mr):
                         for url in urls:
