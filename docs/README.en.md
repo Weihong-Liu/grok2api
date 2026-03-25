@@ -59,6 +59,18 @@ docker compose up -d
 > Render free instances sleep after 15 minutes of inactivity; redeploy/restart will lose data.
 >
 > For persistence, use MySQL / Redis / PostgreSQL and set `SERVER_STORAGE_TYPE` and `SERVER_STORAGE_URL`.
+>
+> This repo includes a GitHub Actions keepalive workflow: `.github/workflows/render-keepalive.yml`
+>
+> 1. Add a GitHub Actions secret at `Settings -> Secrets and variables -> Actions`: `RENDER_KEEPALIVE_URL`
+> 2. Set it to: `https://<your-service>.onrender.com/health`
+> 3. Make sure GitHub Actions is enabled. The workflow pings `/health` every 10 minutes
+>
+> Notes:
+>
+> - `/health` is built in and suitable for keepalive; do not use `/robots.txt`, because Render does not spin up a sleeping service for that path
+> - 24x7 keepalive will consume most of the Render Free monthly instance-hour quota
+> - To run this from another cron platform, use: `KEEPALIVE_URL=https://<your-service>.onrender.com/health sh scripts/render_keepalive.sh`
 
 <br>
 

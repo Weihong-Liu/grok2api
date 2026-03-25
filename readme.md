@@ -59,6 +59,18 @@ docker compose up -d
 > Render 免费实例 15 分钟无访问会休眠；重启/重新部署会丢失数据。
 >
 > 持久化请使用 MySQL / Redis / PostgreSQL，并设置：`SERVER_STORAGE_TYPE` 与 `SERVER_STORAGE_URL`。
+>
+> 仓库内已提供 GitHub Actions 保活任务：`.github/workflows/render-keepalive.yml`
+>
+> 1. 在 GitHub 仓库 `Settings -> Secrets and variables -> Actions` 新增 Secret：`RENDER_KEEPALIVE_URL`
+> 2. 值填写：`https://<你的服务名>.onrender.com/health`
+> 3. 确保 GitHub Actions 已启用，工作流会每 10 分钟请求一次 `/health`
+>
+> 注意：
+>
+> - `/health` 接口已内置，适合保活；不要用 `/robots.txt`，Render 休眠时它不会触发唤醒
+> - 24x7 保活会显著消耗 Render Free 实例时长，接近每月 750 小时上限
+> - 如需在其他平台 cron 使用，可直接运行：`KEEPALIVE_URL=https://<你的服务名>.onrender.com/health sh scripts/render_keepalive.sh`
 
 <br>
 
