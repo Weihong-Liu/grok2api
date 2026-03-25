@@ -283,7 +283,7 @@
     "importTargetPool": "Target Pool",
     "importTokenList": "Token List (one per line)",
     "importPlaceholder": "Paste Tokens, one per line...",
-    "importAutoNsfw": "Auto-enable NSFW after import",
+    "importAutoNsfw": "Auto-add NSFW tag after import",
     "startImport": "Start Import",
     "editTitle": "Edit Token",
     "addTitle": "Add Token",

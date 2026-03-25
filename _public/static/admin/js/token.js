@@ -796,7 +796,7 @@ async function submitImport() {
   const pool = byId('import-pool').value.trim() || 'ssoBasic';
   const text = byId('import-text').value;
   const autoNsfw = byId('import-auto-nsfw');
-  const enableNsfw = !autoNsfw || autoNsfw.checked;
+  const addNsfwTag = !autoNsfw || autoNsfw.checked;
   const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
   const defaultQuota = getDefaultQuotaForPool(pool);
   const importedTokens = [];
@@ -815,7 +815,7 @@ async function submitImport() {
         quota: defaultQuota,
         consumed: 0,
         note: '',
-        tags: [],
+        tags: addNsfwTag ? ['nsfw'] : [],
         fail_count: 0,
         use_count: 0,
         _selected: false
@@ -837,10 +837,6 @@ async function submitImport() {
 
   closeImportModal();
   await loadData();
-
-  if (enableNsfw) {
-    await startBatchNSFW(importedTokens, { skipConfirm: true, silentOnEmpty: true });
-  }
 }
 
 // Export Logic
