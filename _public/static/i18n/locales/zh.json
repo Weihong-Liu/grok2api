@@ -283,6 +283,7 @@
     "importTargetPool": "目标 Pool",
     "importTokenList": "Token 列表 (每行一个)",
     "importPlaceholder": "粘贴 Token，一行一个...",
+    "importAutoNsfw": "导入后自动开启 NSFW",
     "startImport": "开始导入",
     "editTitle": "编辑 Token",
     "addTitle": "添加 Token",

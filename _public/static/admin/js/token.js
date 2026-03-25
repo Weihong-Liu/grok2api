@@ -760,14 +760,21 @@ async function syncToServer() {
       },
       body: JSON.stringify(newTokens)
     });
-    if (!res.ok) showToast(t('common.saveFailed'), 'error');
+    if (!res.ok) {
+      showToast(t('common.saveFailed'), 'error');
+      return false;
+    }
+    return true;
   } catch (e) {
     showToast(t('common.saveError', { msg: e.message }), 'error');
+    return false;
   }
 }
 
 // Import Logic
 function openImportModal() {
+  const autoNsfw = byId('import-auto-nsfw');
+  if (autoNsfw) autoNsfw.checked = true;
   openModal('import-modal');
 }
 
@@ -775,20 +782,34 @@ function closeImportModal() {
   closeModal('import-modal', () => {
     const input = byId('import-text');
     if (input) input.value = '';
+    const autoNsfw = byId('import-auto-nsfw');
+    if (autoNsfw) autoNsfw.checked = true;
   });
 }
 
 async function submitImport() {
+  if (isBatchProcessing) {
+    showToast(t('common.taskInProgress'), 'info');
+    return;
+  }
+
   const pool = byId('import-pool').value.trim() || 'ssoBasic';
   const text = byId('import-text').value;
-  const lines = text.split('\n');
+  const autoNsfw = byId('import-auto-nsfw');
+  const enableNsfw = !autoNsfw || autoNsfw.checked;
+  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
   const defaultQuota = getDefaultQuotaForPool(pool);
+  const importedTokens = [];
+
+  if (lines.length === 0) {
+    showToast(t('token.tokenEmpty'), 'error');
+    return;
+  }
 
   lines.forEach(line => {
-    const t = line.trim();
-    if (t && !flatTokens.some(ft => ft.token === t)) {
+    if (!flatTokens.some(ft => ft.token === line)) {
       flatTokens.push({
-        token: t,
+        token: line,
         pool: pool,
         status: 'active',
         quota: defaultQuota,
@@ -799,12 +820,27 @@ async function submitImport() {
         use_count: 0,
         _selected: false
       });
+      importedTokens.push(line);
     }
   });
 
-  await syncToServer();
+  if (importedTokens.length === 0) {
+    showToast(t('token.tokenExists'), 'info');
+    return;
+  }
+
+  const saved = await syncToServer();
+  if (!saved) {
+    await loadData();
+    return;
+  }
+
   closeImportModal();
-  loadData();
+  await loadData();
+
+  if (enableNsfw) {
+    await startBatchNSFW(importedTokens, { skipConfirm: true, silentOnEmpty: true });
+  }
 }
 
 // Export Logic
@@ -1246,24 +1282,31 @@ function changePageSize() {
 
 // ========== NSFW 批量开启 ==========
 
-async function batchEnableNSFW() {
+async function startBatchNSFW(tokens, options = {}) {
   if (isBatchProcessing) {
     showToast(t('common.taskInProgress'), 'info');
-    return;
+    return false;
   }
 
-  const selected = getSelectedTokens();
-  const targetCount = selected.length;
+  const uniqueTokens = Array.from(new Set(
+    (Array.isArray(tokens) ? tokens : [])
+      .map(token => String(token || '').trim())
+      .filter(Boolean)
+  ));
+  const targetCount = uniqueTokens.length;
   if (targetCount === 0) {
-    showToast(t('common.noTokenSelected'), 'error');
-    return;
+    if (!options.silentOnEmpty) {
+      showToast(t('common.noTokenSelected'), 'error');
+    }
+    return false;
   }
-  const msg = t('token.nsfwConfirm', { count: targetCount });
 
-  const ok = await confirmAction(msg, { okText: t('token.nsfwEnable') });
-  if (!ok) return;
+  if (!options.skipConfirm) {
+    const msg = t('token.nsfwConfirm', { count: targetCount });
+    const ok = await confirmAction(msg, { okText: t('token.nsfwEnable') });
+    if (!ok) return false;
+  }
 
-  // 禁用按钮
   const btn = byId('btn-batch-nsfw');
   if (btn) btn.disabled = true;
 
@@ -1275,14 +1318,13 @@ async function batchEnableNSFW() {
   setActionButtonsState();
 
   try {
-    const tokens = selected.length > 0 ? selected.map(t => t.token) : null;
     const res = await fetch('/v1/admin/tokens/nsfw/enable/async', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...buildAuthHeaders(apiKey)
       },
-      body: JSON.stringify({ tokens })
+      body: JSON.stringify({ tokens: uniqueTokens })
     });
 
     const data = await readJsonResponse(res);
@@ -1349,12 +1391,19 @@ async function batchEnableNSFW() {
         setActionButtonsState();
       }
     });
+    return true;
   } catch (e) {
     finishBatchProcess(true, { silent: true });
     showToast(t('token.requestError') + ': ' + e.message, 'error');
     if (btn) btn.disabled = false;
     setActionButtonsState();
+    return false;
   }
+}
+
+async function batchEnableNSFW() {
+  const selected = getSelectedTokens();
+  await startBatchNSFW(selected.map(t => t.token));
 }
 
 
